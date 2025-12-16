@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Loader2,
   Info,
+  Clock
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -40,7 +41,23 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const COLLECTION_NAME = "survey_responses"; // Changed to English for consistency, though collection name doesn't affect UI
+const COLLECTION_NAME = "survey_responses";
+
+// --- MATRIX CONFIGURATION (TRANSLATED) ---
+const MATRIX_CONTEXTS = [
+  { id: 'commute', label: 'Work / Studies (Daily routine)' },
+  { id: 'shopping', label: 'Shopping / Errands / Admin' },
+  { id: 'leisure', label: 'Leisure / Social / Sports' },
+  { id: 'family', label: 'Family transport / Passengers' },
+  { id: 'travel', label: 'Long trips / Tourism' }
+];
+
+const MATRIX_FREQUENCIES = [
+  { value: 'daily', label: 'Daily (5+ days/week)' },
+  { value: 'weekly', label: 'Frequent (1-4 days/week)' },
+  { value: 'sporadic', label: 'Occasional' },
+  { value: 'never', label: 'Never' }
+];
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -55,7 +72,6 @@ export default function App() {
 
   // --- DESIGN SOLUTION: Inject Tailwind CSS ---
   useEffect(() => {
-    // This loads styles automatically if not present
     if (!document.getElementById("tailwind-cdn")) {
       const script = document.createElement("script");
       script.id = "tailwind-cdn";
@@ -76,7 +92,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- ACADEMIC AND FORMAL MESSAGES (Translated) ---
+  // --- ACADEMIC AND FORMAL MESSAGES (TRANSLATED) ---
   const motivationalMessages = [
     {
       icon: Gift,
@@ -99,7 +115,8 @@ export default function App() {
     {
       icon: Bike,
       message: "Sustainable Alternatives",
-      subtitle: "Evaluation of the feasibility of new shared mobility models.",
+      subtitle:
+        "Evaluation of the feasibility of new shared mobility models.",
     },
     {
       icon: CheckCircle,
@@ -129,15 +146,16 @@ export default function App() {
   }, []);
 
   const getUserPath = () => {
-    // Safe array check to avoid TS errors
-    const vehicles = answers.vehicles || [];
-    const hasCar =
-      vehicles.includes("car_gas") || vehicles.includes("car_electric");
-    const hasOtherVehicle = vehicles.some((v) =>
-      ["moto_gas", "moto_electric", "bike", "ebike", "scooter"].includes(v)
-    );
-    const hasNoVehicle = vehicles.includes("none");
-    return { hasCar, hasOtherVehicle, hasNoVehicle };
+    const vehicles = answers.vehicles; // Single choice (string)
+    
+    // Check if a vehicle is selected (and not 'none')
+    const hasAnyVehicle = vehicles && vehicles !== 'none';
+    
+    const hasCar = vehicles === "car_gas" || vehicles === "car_electric";
+    const hasOtherVehicle = ["moto_gas", "moto_electric", "bike", "ebike", "scooter"].includes(vehicles);
+    const hasNoVehicle = vehicles === "none";
+    
+    return { hasCar, hasOtherVehicle, hasNoVehicle, hasAnyVehicle };
   };
 
   const questions = [
@@ -145,7 +163,15 @@ export default function App() {
       id: "intro",
       type: "intro",
       title: "Academic Study on Urban Mobility in Almería",
-      content: `Dear participant,\n\nI am Soufyan Essoubai, a Global Business and Economics student. I am conducting academic research for my bachelor's thesis, aimed at analyzing urban mobility patterns in the province of Almería and identifying opportunities for improvement in transport infrastructure.\n\nThe survey is completely anonymous, and the collected data will be treated with strict confidentiality and used exclusively for academic purposes.\n\nEstimated time: 3-5 minutes.\nI sincerely appreciate your collaboration.`,
+      content: `Dear participant,\n\nI am Soufyan Essoubai Chikh, a Global Business and Economics student. I am conducting academic research for my bachelor's thesis, aimed at analyzing urban mobility patterns in the province of Almería and identifying opportunities for improvement in transport infrastructure.\n\nThe survey is completely anonymous, and the collected data will be treated with strict confidentiality and used exclusively for academic purposes.\n\nEstimated time: 3-5 minutes.\nI sincerely appreciate your collaboration.`,
+    },
+    // --- RAFFLE AT THE BEGINNING ---
+    {
+      id: "raffle_participation_intro",
+      question: "🎁 Participate in the €50 Draw!",
+      subtitle: "To incentivize your participation, we are raffling a gift card. Fill in your details now to secure your entry (Optional). Your participation will be validated upon submitting the survey.",
+      type: "raffle",
+      required: false,
     },
     {
       id: "residence",
@@ -154,7 +180,7 @@ export default function App() {
       icon: MapPin,
       required: true,
       options: [
-        { value: "almeria", label: "Almería (city)" },
+        { value: "almeria", label: "Almería (capital)" },
         { value: "roquetas", label: "Roquetas de Mar" },
         { value: "ejido", label: "El Ejido" },
         { value: "nijar", label: "Níjar" },
@@ -185,8 +211,9 @@ export default function App() {
     {
       id: "occupation",
       question: "Main occupation",
-      subtitle: "Select all options that describe your current situation",
-      type: "multiple",
+      subtitle:
+        "Select the option that best describes your current situation",
+      type: "single",
       icon: User,
       required: true,
       options: [
@@ -197,7 +224,7 @@ export default function App() {
         },
         { value: "young_prof", label: "Working professional (< 35 years)" },
         { value: "adult_prof", label: "Working professional (≥ 35 years)" },
-        { value: "parent", label: "Dedicated to caring for minor children" },
+        { value: "parent", label: "Dedicated to caring for household/family" },
         { value: "self_employed", label: "Self-employed / Entrepreneur" },
         { value: "retired", label: "Retired / Pensioner" },
         { value: "unemployed", label: "Unemployed / Job seeking" },
@@ -206,7 +233,7 @@ export default function App() {
     },
     {
       id: "travel_reasons",
-      question: "Main reasons for travel",
+      question: "Main reasons for using your daily transport method.",
       subtitle: "Select all relevant options",
       type: "multiple",
       required: true,
@@ -219,6 +246,7 @@ export default function App() {
         { value: "sports", label: "Physical activity / Sports" },
         { value: "social", label: "Social visits" },
         { value: "medical", label: "Medical appointments" },
+        { value: "other", label: "Other reason", hasInput: true },
       ],
     },
     {
@@ -226,7 +254,7 @@ export default function App() {
       question: "Perception of proximity",
       subtitle:
         'What distance do you consider "close" for a habitual trip on foot or by non-motorized means?',
-      type: "multiple",
+      type: "single",
       required: true,
       options: [
         { value: "0-500m", label: "Up to 500 meters" },
@@ -239,9 +267,10 @@ export default function App() {
     },
     {
       id: "vehicles",
-      question: "Personal vehicle ownership",
-      subtitle: "Select all vehicles available in your household for your use",
-      type: "multiple",
+      question: "Main personal vehicle",
+      subtitle:
+        "Select the vehicle you use most frequently",
+      type: "single",
       icon: Car,
       required: true,
       options: [
@@ -251,50 +280,27 @@ export default function App() {
         { value: "moto_electric", label: "Motorcycle / Scooter (Electric)" },
         { value: "bike", label: "Traditional Bicycle" },
         { value: "ebike", label: "Electric Bicycle (e-bike)" },
-        { value: "scooter", label: "Personal Mobility Device (e-scooter)" },
+        {
+          value: "scooter",
+          label: "Personal Mobility Device (e-scooter)",
+        },
         { value: "none", label: "None" },
       ],
     },
+    // --- MATRIX QUESTION (Context x Frequency) ---
     {
-      id: "car_usage",
-      question: "Contexts of private vehicle use",
-      subtitle: "Select the situations in which you use the car",
-      type: "multiple",
-      icon: Car,
+      id: 'matrix_usage_frequency', 
+      question: 'Detailed usage patterns',
+      subtitle: 'For your main vehicle, indicate how frequently you use it in each situation.',
+      type: 'matrix_context_freq', 
       required: true,
-      showIf: () => getUserPath().hasCar,
-      options: [
-        { value: "daily_commute", label: "Daily commuting (work/studies)" },
-        { value: "long_trips", label: "Intercity trips / Long distance" },
-        { value: "weather", label: "Adverse weather conditions" },
-        { value: "heavy_load", label: "Transporting cargo" },
-        { value: "passengers", label: "Transporting passengers" },
-        { value: "long_urban", label: "Long urban trips (>5 km)" },
-        {
-          value: "short_comfort",
-          label: "Short trips (preference for comfort)",
-        },
-        { value: "no_alternatives", label: "Lack of viable alternatives" },
-      ],
+      showIf: () => getUserPath().hasAnyVehicle,
     },
-    {
-      id: "car_frequency",
-      question: "Frequency of private vehicle use",
-      type: "single",
-      required: true,
-      showIf: () => getUserPath().hasCar,
-      options: [
-        { value: "daily", label: "Daily use" },
-        { value: "4-5days", label: "4-5 days per week" },
-        { value: "2-3days", label: "2-3 days per week" },
-        { value: "1day", label: "1 day per week" },
-        { value: "<1week", label: "Less than once per week" },
-        { value: "rarely", label: "Sporadically" },
-      ],
-    },
+    // --- END MATRIX ---
+
     {
       id: "car_barriers",
-      question: "Barriers to using alternative transport",
+      question: "Barriers to using other transport methods",
       subtitle: "Select up to 3 main factors",
       type: "multiple",
       maxSelections: 3,
@@ -314,18 +320,22 @@ export default function App() {
           value: "no_bike_lanes",
           label: "Unsafe or nonexistent cycling infrastructure",
         },
-        { value: "climate", label: "Weather conditions (high temperatures)" },
+        {
+          value: "climate",
+          label: "Weather conditions (high temperatures)",
+        },
         {
           value: "heavy_items",
           label: "Need to transport heavy loads regularly",
         },
         { value: "passengers", label: "Need to transport passengers" },
-        { value: "autonomy", label: "Preference for autonomy and flexibility" },
-        { value: "habit", label: "Habit / Custom" },
         {
-          value: "no_alternatives",
-          label: "Lack of knowledge of alternatives",
+          value: "autonomy",
+          label: "Preference for autonomy and flexibility",
         },
+        { value: "habit", label: "Habit / Custom" },
+        { value: "no_alternatives", label: "Lack of knowledge of alternatives" },
+        { value: "other", label: "Other reason", hasInput: true },
       ],
     },
     {
@@ -335,7 +345,10 @@ export default function App() {
       required: true,
       showIf: () => !getUserPath().hasCar && getUserPath().hasOtherVehicle,
       options: [
-        { value: "cost", label: "Economic factors (Acquisition, maintenance)" },
+        {
+          value: "cost",
+          label: "Economic factors (Acquisition, maintenance)",
+        },
         {
           value: "no_need",
           label: "Satisfied with other mobility alternatives",
@@ -343,12 +356,16 @@ export default function App() {
         { value: "parking", label: "Parking difficulty" },
         { value: "environmental", label: "Environmental awareness" },
         { value: "no_license", label: "Lack of driving license" },
-        { value: "independence", label: "Personal preference for other means" },
+        {
+          value: "independence",
+          label: "Personal preference for other means",
+        },
+        { value: "other", label: "Other reason", hasInput: true },
       ],
     },
     {
       id: "satisfaction_vehicle",
-      question: "Level of satisfaction with your current mobility",
+      question: "Satisfaction level with your current mobility method",
       subtitle: "1 = Very dissatisfied | 5 = Very satisfied",
       type: "scale",
       required: true,
@@ -363,7 +380,10 @@ export default function App() {
       showIf: () => getUserPath().hasNoVehicle,
       options: [
         { value: "cost", label: "Economic factors" },
-        { value: "pt_works", label: "Public transport meets my needs" },
+        {
+          value: "pt_works",
+          label: "Public transport meets my needs",
+        },
         { value: "environmental", label: "Environmental awareness" },
         { value: "no_license", label: "Lack of driving license" },
         {
@@ -371,11 +391,13 @@ export default function App() {
           label: "Preference to avoid ownership responsibilities",
         },
         { value: "proximity", label: "Proximity to essential services" },
+        { value: "other", label: "Other reason", hasInput: true },
       ],
     },
+    // --- Q13 MODIFIED ---
     {
       id: "decision_factors",
-      question: "Determining factors in modal choice",
+      question: "Factors determining your transport choice",
       subtitle:
         "Order by importance from 1 (Most important) to 5 (Least important)",
       type: "ranking",
@@ -407,7 +429,7 @@ export default function App() {
     },
     {
       id: "motosharing_features",
-      question: "Valued service attributes",
+      question: "Attributes valued in the transport method",
       subtitle: "Select the 3 most critical aspects for you",
       type: "multiple",
       maxSelections: 3,
@@ -423,16 +445,14 @@ export default function App() {
           label: "Geographic availability (Fleet density)",
         },
         { value: "ease", label: "Digital platform usability (App)" },
-        {
-          value: "no_license",
-          label: "Accessibility without specific license",
-        },
+        { value: "no_license", label: "Accessibility without specific license" },
         { value: "autonomy", label: "Vehicle autonomy" },
         { value: "charging", label: "Charging/parking infrastructure" },
         { value: "safety", label: "Perceived vehicle safety" },
         { value: "helmets", label: "Provision of safety equipment" },
         { value: "service", label: "User support" },
         { value: "sustainability", label: "Renewable energy guarantee" },
+        { value: "other", label: "Other attribute", hasInput: true },
       ],
     },
     {
@@ -447,41 +467,38 @@ export default function App() {
         { value: "3-4", label: "Between €3.00 and €4.00" },
         { value: "4-5", label: "Between €4.00 and €5.00" },
         { value: ">5", label: "More than €5.00" },
-        {
-          value: "none",
-          label: "I would not use the service if it had a cost",
-        },
+        { value: "none", label: "I would not use the service if it had a cost" },
       ],
     },
+    // --- Q17 MODIFIED ---
     {
       id: "travel_experience",
-      question: "Evaluation of current travel experience",
+      question: "How satisfied are you with your current daily transport choice?",
       type: "single",
       required: true,
       options: [
-        { value: "pleasant", label: "Positive / Relaxing" },
+        { value: "pleasant", label: "Very Positive / Relaxing" },
         { value: "neutral", label: "Neutral / Routine" },
         { value: "stressful", label: "Stressful (Traffic/Congestion)" },
-        {
-          value: "uncomfortable",
-          label: "Uncomfortable (Weather/Infrastructure)",
-        },
+        { value: "uncomfortable", label: "Uncomfortable (Weather/Infrastructure)" },
         { value: "boring", label: "Negative (Wasted time)" },
         { value: "varies", label: "Varies depending on circumstances" },
       ],
     },
     {
       id: "almeria_problems",
-      question: "Diagnosis of mobility in Almería",
-      subtitle:
-        "Identify the 2 most critical problems according to your criteria",
+      question: "Diagnosis of mobility problems in Almería",
+      subtitle: "Identify the 2 most critical problems according to your criteria",
       type: "multiple",
       maxSelections: 2,
       minSelections: 2,
       required: true,
       options: [
         { value: "traffic", label: "Traffic congestion" },
-        { value: "pt_inefficient", label: "Public transport inefficiency" },
+        {
+          value: "pt_inefficient",
+          label: "Public transport inefficiency",
+        },
         { value: "bike_infra", label: "Lack of cycling infrastructure" },
         { value: "parking", label: "Lack of parking spaces" },
         {
@@ -495,15 +512,8 @@ export default function App() {
           label: "Absence of innovative mobility models",
         },
         { value: "climate", label: "Adverse weather conditions" },
+        { value: "other", label: "Other problem", hasInput: true },
       ],
-    },
-    {
-      id: "raffle_participation",
-      question: "Incentive Draw",
-      subtitle:
-        "If you wish to participate in the draw for a gift card, please provide your contact details.",
-      type: "raffle",
-      required: false,
     },
     {
       id: "final",
@@ -522,7 +532,13 @@ export default function App() {
     setAnswers({ ...answers, [currentQuestion.id]: value });
   };
 
-  // NUEVA FUNCIÓN CORREGIDA PARA EL SORTEO
+  const handleOtherInput = (questionId, textValue) => {
+    setAnswers(prev => ({
+      ...prev,
+      [`${questionId}_other_text`]: textValue
+    }));
+  };
+
   const handleRaffleInput = (field, value) => {
     setAnswers((prev) => ({
       ...prev,
@@ -538,7 +554,7 @@ export default function App() {
       newSelected = currentSelected.filter((v) => v !== optionValue);
     } else {
       if (maxSelections && currentSelected.length >= maxSelections) {
-        return; // Do not allow more selections
+        return; // No allowing more selections
       }
       newSelected = [...currentSelected, optionValue];
     }
@@ -554,6 +570,17 @@ export default function App() {
     }
   };
 
+  // Simplified handler for matrix (Context -> Frequency)
+  const handleMatrixAnswerSimple = (contextId, frequencyValue) => {
+    setAnswers(prev => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...(prev[currentQuestion.id] || {}),
+        [contextId]: frequencyValue
+      }
+    }));
+  };
+
   const handleSubmitSurvey = async () => {
     if (!user) {
       setSubmitError("Session error. Please reload the page.");
@@ -563,10 +590,14 @@ export default function App() {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    // Calculate if it is a valid raffle entry (if data was filled at start)
+    const isRaffleParticipant = answers.raffle_email && answers.raffle_name && answers.raffle_terms;
+
     try {
       await addDoc(collection(db, COLLECTION_NAME), {
         userId: user.uid,
         answers: answers,
+        raffle_valid: !!isRaffleParticipant,
         submittedAt: serverTimestamp(),
         deviceInfo: {
           userAgent: navigator.userAgent,
@@ -603,6 +634,13 @@ export default function App() {
     const answer = answers[currentQuestion?.id];
     if (!currentQuestion?.required) return true;
 
+    // Simple Matrix Validation (Must answer at least one context to proceed, or all if strict)
+    if (currentQuestion.type === 'matrix_context_freq') {
+        // Optional: Require answering all contexts?
+        // Here we validate that at least one has been answered.
+        return answer && Object.keys(answer).length > 0;
+    }
+
     if (currentQuestion.type === "multiple") {
       if (currentQuestion.minSelections) {
         return answer?.length >= currentQuestion.minSelections;
@@ -633,8 +671,9 @@ export default function App() {
           </p>
           <div className="bg-blue-50 p-4 rounded-lg mb-6">
             <p className="text-sm text-gray-700">
-              You can share this questionnaire with other Almería residents to
-              increase the study's representativeness.
+              I would greatly appreciate if you share this questionnaire with other Almería residents
+              to increase the study's representativeness: 
+              https://tesismovilidadurbana-almeria-version-final-d5yj90l4k.vercel.app
             </p>
           </div>
           <button
@@ -738,15 +777,15 @@ export default function App() {
               </li>
               <li>
                 <strong>Resolution:</strong> Winner will be contacted one week
-                after the study closes (study close: 31/12/2025 at 23:59).
+                after the study closes.
               </li>
               <li>
-                <strong>Methodology:</strong> Random selection via AI among
-                participants.
+                <strong>Methodology:</strong> Random selection via AI
+                among participants.
               </li>
               <li>
-                <strong>Deadline:</strong> The beneficiary will have 14 calendar
-                days for acceptance.
+                <strong>Deadline:</strong> The beneficiary will have 14 calendar days
+                for acceptance.
               </li>
             </ul>
           </div>
@@ -754,7 +793,7 @@ export default function App() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email *
+                Email <span className="text-red-600">*</span>
               </label>
               <input
                 type="email"
@@ -768,7 +807,7 @@ export default function App() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name *
+                Full Name <span className="text-red-600">*</span>
               </label>
               <input
                 type="text"
@@ -806,10 +845,9 @@ export default function App() {
                   className="mt-1 w-4 h-4 text-purple-600"
                 />
                 <span className="text-xs text-gray-600 text-justify">
-                  <strong className="text-purple-700">* </strong>I agree to
-                  participate in the draw and authorize the use of my contact
-                  details exclusively for prize communication, in accordance
-                  with European data protection regulations.
+                  <strong className="text-purple-700">* </strong>
+                  I agree to participate in the draw and authorize the use of my contact details
+                  exclusively for prize communication, in accordance with data protection regulations.
                 </span>
               </label>
             </div>
@@ -850,7 +888,7 @@ export default function App() {
                   : "bg-purple-600 hover:bg-purple-700 hover:shadow-lg"
               }`}
             >
-              Confirm & Participate
+              Confirm and Participate
               <CheckCircle className="ml-2 w-4 h-4" />
             </button>
           </div>
@@ -861,6 +899,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-6 relative overflow-hidden font-sans">
+      {/* FH AACHEN LOGO (Absolute Position) */}
+      <div className="absolute top-4 right-4 z-10">
+        <img 
+          src="https://upload.wikimedia.org/wikipedia/commons/8/86/FH_Aachen_Logo.svg" 
+          alt="FH Aachen Logo" 
+          className="h-10 md:h-12 w-auto opacity-90 hover:opacity-100 transition-opacity" 
+        />
+      </div>
+
       {showPopup && (
         <div
           className="fixed z-50 animate-fade-in-down cursor-pointer left-1/2 -translate-x-1/2 w-full max-w-xs px-4"
@@ -906,7 +953,7 @@ export default function App() {
         }
       `}</style>
 
-      <div className="max-w-3xl mx-auto pt-8">
+      <div className="max-w-3xl mx-auto pt-12 md:pt-8">
         <div className="mb-6">
           <div className="flex justify-between text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider">
             <span>
@@ -949,30 +996,42 @@ export default function App() {
           {currentQuestion?.type === "single" && (
             <div className="space-y-3">
               {currentQuestion.options.map((option) => (
-                <label
-                  key={option.value}
-                  onClick={() => handleAnswer(option.value)}
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
-                    answers[currentQuestion.id] === option.value
-                      ? "border-indigo-600 bg-indigo-50/50"
-                      : "border-gray-200 hover:border-indigo-300 bg-white"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded-full border flex items-center justify-center mr-3 transition-colors ${
+                <div key={option.value}>
+                  <label
+                    onClick={() => handleAnswer(option.value)}
+                    className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
                       answers[currentQuestion.id] === option.value
-                        ? "border-indigo-600"
-                        : "border-gray-300"
+                        ? "border-indigo-600 bg-indigo-50/50"
+                        : "border-gray-200 hover:border-indigo-300 bg-white"
                     }`}
                   >
-                    {answers[currentQuestion.id] === option.value && (
-                      <div className="w-2 h-2 rounded-full bg-indigo-600" />
-                    )}
-                  </div>
-                  <span className="text-gray-700 text-sm font-medium">
-                    {option.label}
-                  </span>
-                </label>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center mr-3 transition-colors ${
+                        answers[currentQuestion.id] === option.value
+                          ? "border-indigo-600"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {answers[currentQuestion.id] === option.value && (
+                        <div className="w-2 h-2 rounded-full bg-indigo-600" />
+                      )}
+                    </div>
+                    <span className="text-gray-700 text-sm font-medium">
+                      {option.label}
+                    </span>
+                  </label>
+                  {/* INPUT TEXT FOR "OTHER" */}
+                  {option.hasInput && answers[currentQuestion.id] === option.value && (
+                    <input 
+                        type="text" 
+                        placeholder="Please specify..." 
+                        className="mt-2 w-full p-2 border border-gray-300 rounded text-sm focus:border-indigo-500 outline-none ml-8 w-[calc(100%-2rem)]"
+                        value={answers[`${currentQuestion.id}_other_text`] || ''}
+                        onChange={(e) => handleOtherInput(currentQuestion.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -983,35 +1042,47 @@ export default function App() {
                 const selected = answers[currentQuestion.id] || [];
                 const isSelected = selected.includes(option.value);
                 return (
-                  <label
-                    key={option.value}
-                    onClick={() =>
-                      handleMultipleAnswer(
-                        option.value,
-                        currentQuestion.maxSelections
-                      )
-                    }
-                    className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
-                      isSelected
-                        ? "border-indigo-600 bg-indigo-50/50"
-                        : "border-gray-200 hover:border-indigo-300 bg-white"
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors ${
+                  <div key={option.value}>
+                    <label
+                      onClick={() =>
+                        handleMultipleAnswer(
+                          option.value,
+                          currentQuestion.maxSelections
+                        )
+                      }
+                      className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
                         isSelected
-                          ? "bg-indigo-600 border-indigo-600"
-                          : "border-gray-300 bg-white"
+                          ? "border-indigo-600 bg-indigo-50/50"
+                          : "border-gray-200 hover:border-indigo-300 bg-white"
                       }`}
                     >
-                      {isSelected && (
-                        <CheckCircle className="w-3 h-3 text-white" />
-                      )}
-                    </div>
-                    <span className="text-gray-700 text-sm font-medium">
-                      {option.label}
-                    </span>
-                  </label>
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors ${
+                          isSelected
+                            ? "bg-indigo-600 border-indigo-600"
+                            : "border-gray-300 bg-white"
+                        }`}
+                      >
+                        {isSelected && (
+                          <CheckCircle className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <span className="text-gray-700 text-sm font-medium">
+                        {option.label}
+                      </span>
+                    </label>
+                    {/* INPUT TEXT FOR "OTHER" */}
+                    {option.hasInput && isSelected && (
+                        <input 
+                            type="text" 
+                            placeholder="Please specify..." 
+                            className="mt-2 w-full p-2 border border-gray-300 rounded text-sm focus:border-indigo-500 outline-none ml-8 w-[calc(100%-2rem)]"
+                            value={answers[`${currentQuestion.id}_other_text`] || ''}
+                            onChange={(e) => handleOtherInput(currentQuestion.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    )}
+                  </div>
                 );
               })}
               {currentQuestion.maxSelections && (
@@ -1100,12 +1171,58 @@ export default function App() {
                     {!isSelected && (
                       <div className="w-5 h-5 rounded-full border-2 border-gray-200" />
                     )}
-                    {isSelected && (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    )}
+                    {isSelected && <CheckCircle className="w-5 h-5 text-green-500" />}
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {/* TYPE: MATRIX (Context x Frequency) */}
+          {currentQuestion.type === 'matrix_context_freq' && (
+            <div className="space-y-6">
+              {/* Get selected vehicle label */}
+              {(() => {
+                  const vCode = answers.vehicles;
+                  if (!vCode || vCode === 'none') return <p className="text-gray-500 italic">No vehicle selected.</p>;
+                  const vLabel = questions.find(q => q.id === 'vehicles').options.find(o => o.value === vCode)?.label;
+                  
+                  return (
+                      <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                          <h3 className="font-bold text-indigo-700 mb-4 flex items-center text-lg">
+                              <Car className="w-5 h-5 mr-2" /> {vLabel}
+                          </h3>
+                          <p className="text-sm text-gray-500 mb-4">Indicate frequency of use for each situation:</p>
+                          
+                          <div className="space-y-4">
+                              {MATRIX_CONTEXTS.map(ctx => (
+                                  <div key={ctx.id} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                      <p className="text-sm font-semibold text-gray-700 mb-2">{ctx.label}</p>
+                                      <div className="flex flex-wrap gap-2">
+                                          {MATRIX_FREQUENCIES.map(freq => {
+                                              const currentVal = answers[currentQuestion.id]?.[ctx.id];
+                                              const isSelected = currentVal === freq.value;
+                                              return (
+                                                  <button
+                                                      key={freq.value}
+                                                      onClick={() => handleMatrixAnswerSimple(ctx.id, freq.value)}
+                                                      className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                                                          isSelected 
+                                                          ? 'bg-indigo-600 text-white border-indigo-600' 
+                                                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                                      }`}
+                                                  >
+                                                      {freq.label}
+                                                  </button>
+                                              )
+                                          })}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  );
+              })()}
             </div>
           )}
 
@@ -1131,7 +1248,9 @@ export default function App() {
                   : "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md"
               }`}
             >
-              {currentStep === visibleQuestions.length - 1 ? "Finish" : "Next"}
+              {currentStep === visibleQuestions.length - 1
+                ? "Finish"
+                : "Next"}
               {currentStep !== visibleQuestions.length - 1 && (
                 <ChevronRight className="ml-2 w-4 h-4" />
               )}
